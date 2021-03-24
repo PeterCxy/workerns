@@ -1,0 +1,15 @@
+{
+  "name": "workerns",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Peter Cai <peter@typeblog.net>",
+  "license": "WTFPL",
+  "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.3.3",
+    "webpack": "^5.27.2"
+  }
+}
