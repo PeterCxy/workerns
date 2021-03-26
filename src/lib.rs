@@ -1,3 +1,5 @@
+mod server;
+
 use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;
 use web_sys::*;
@@ -23,9 +25,6 @@ cfg_if! {
 pub async fn handle_request_rs(ev: ExtendableEvent, req: Request) -> Response {
     // Set up panic hook
     set_panic_hook();
-    
-    return Response::new_with_opt_str_and_init(
-        Some("hello"),
-        ResponseInit::new()
-            .status(200)).unwrap();
+
+    server::Server::get().await.handle_request(ev, req).await
 }
