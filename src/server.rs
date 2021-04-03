@@ -169,7 +169,14 @@ impl Server {
         records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>,
     ) -> Result<Message, String> {
         let mut message_builder = MessageBuilder::new_udp();
-        message_builder.header_mut().set_id(id);
+        // Set up the response header
+        let header = message_builder.header_mut();
+        header.set_id(id);
+        header.set_qr(true); // Query Response = true
+        header.set_aa(false); // Not Authoritative
+        header.set_ra(true); // Recursion Available
+
+        // Set up the answer section
         let mut answer_builder = message_builder.answer();
         for r in records {
             answer_builder
