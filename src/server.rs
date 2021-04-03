@@ -73,12 +73,13 @@ impl Server {
 
     pub async fn handle_request(&self, ev: ExtendableEvent, req: Request) -> Response {
         let body = err_response!(Self::parse_dns_body(&req).await);
+        let query_id = body.header().id(); // random ID that needs to be preserved in response
         let questions = err_response!(Self::extract_questions(body));
         let records = err_response!(self.client.query(questions).await);
         let resp_format = Self::get_response_format(&req);
 
         let mut resp_body = err_response!(match &resp_format {
-            &DnsResponseFormat::WireFormat => Self::build_answer_wireformat(records)
+            &DnsResponseFormat::WireFormat => Self::build_answer_wireformat(query_id, records)
                 .map(|x| x.as_slice().to_owned()),
             &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string())
         });
@@ -169,12 +170,14 @@ impl Server {
         }
     }
 
-    fn build_answer_wireformat(records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>) -> Result<Message, String> {
-        let mut message_builder = MessageBuilder::new_udp().answer();
+    fn build_answer_wireformat(id: u16, records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>) -> Result<Message, String> {
+        let mut message_builder = MessageBuilder::new_udp();
+        message_builder.header_mut().set_id(id);
+        let mut answer_builder = message_builder.answer();
         for r in records {
-            message_builder.push(r)
+            answer_builder.push(r)
                 .map_err(|_| "Max answer size exceeded".to_string())?;
         }
-        Ok(message_builder.freeze())
+        Ok(answer_builder.freeze())
     }
 }
