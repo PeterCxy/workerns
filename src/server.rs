@@ -143,6 +143,15 @@ impl Server {
     }
 
     fn extract_questions(msg: Message) -> Result<Vec<Question<ParsedDname>>, String> {
+        // Validate the header first
+        let header = msg.header();
+        if header.qr() {
+            return Err("Not a DNS query".to_string());
+        }
+        if !header.rd() {
+            return Err("Non-recursive queries are not supported".to_string());
+        }
+
         let question_section = msg.question();
         let questions: Vec<_> = question_section.collect();
         if questions.len() == 0 {
