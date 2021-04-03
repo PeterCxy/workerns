@@ -8,9 +8,11 @@ use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
 use domain_core::bits::record::Record;
 use domain_core::rdata::AllRecordData;
+use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
 use std::borrow::Borrow;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 use web_sys::*;
 
 macro_rules! err_response {
@@ -120,13 +122,21 @@ impl Server {
             }
         } else if method == "POST" {
             // POST request -- DNS wireformat
-            // TODO: implement this properly (need a way to read body to [u8])
             let headers = req.headers();
             if !headers.has("Content-Type").unwrap() {
                 return Err("Missing Content-Type header".to_string());
             }
+            if headers.get("Content-Type").unwrap().unwrap() != "application/dns-message" {
+                return Err("Unsupported Content-Type".to_string());
+            }
 
-            todo!()
+            let req_body = req.array_buffer()
+                .map_err(|_| "Failed to read request body".to_string())?;
+            let req_body: ArrayBuffer = JsFuture::from(req_body)
+                .await
+                .map_err(|_| "Failed to read request body".to_string())?
+                .into();
+            return crate::util::parse_dns_wireformat(&Uint8Array::new(&req_body).to_vec());
         } else {
             return Err(format!("Unsupported method {}", method))
         }
