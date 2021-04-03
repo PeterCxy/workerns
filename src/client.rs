@@ -34,6 +34,21 @@ impl Client {
         Self::extract_answers(resp)
     }
 
+    pub async fn query_with_retry(
+        &self,
+        questions: Vec<Question<ParsedDname>>,
+        retries: usize,
+    ) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
+        let mut last_res = Err("Dummy".to_string());
+        for i in (0..retries) {
+            last_res = self.query(questions.clone()).await;
+            if last_res.is_ok() {
+                break;
+            }
+        }
+        return last_res;
+    }
+
     // Select an upstream randomly
     fn select_upstream(&self) -> String {
         let idx = unsafe { Math::random() } * self.options.upstream_urls.len() as f64;
@@ -51,7 +66,7 @@ impl Client {
         header.set_qr(false); // For queries, QR = false
         header.set_opcode(Opcode::Query);
         header.set_rd(true); // Ask for recursive queries
-        // Set up the questions
+                             // Set up the questions
         for q in questions {
             builder
                 .push(q)

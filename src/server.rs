@@ -44,6 +44,7 @@ enum DnsResponseFormat {
 #[derive(Deserialize)]
 pub struct ServerOptions {
     upstream_urls: Vec<String>,
+    retries: usize,
 }
 
 pub struct Server {
@@ -75,7 +76,11 @@ impl Server {
         let body = err_response!(Self::parse_dns_body(&req).await);
         let query_id = body.header().id(); // random ID that needs to be preserved in response
         let questions = err_response!(Self::extract_questions(body));
-        let records = err_response!(self.client.query(questions).await);
+        let records = err_response!(
+            self.client
+                .query_with_retry(questions, self.options.retries)
+                .await
+        );
         let resp_format = Self::get_response_format(&req);
 
         let mut resp_body = err_response!(match &resp_format {
