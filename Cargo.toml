@@ -37,3 +37,7 @@ web-sys = { version = "0.3", features = [
     "Url",
     "UrlSearchParams"
 ]}
+
+[profile.release]
+opt-level = 3
+lto = true
