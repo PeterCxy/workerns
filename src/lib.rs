@@ -1,3 +1,4 @@
+mod client;
 mod server;
 
 use cfg_if::cfg_if;

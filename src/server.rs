@@ -1,11 +1,27 @@
-use std::borrow::Borrow;
-
+use crate::client::*;
 use async_static::async_static;
 use bytes::Bytes;
+use domain_core::bits::ParsedDname;
 use domain_core::bits::message::Message;
+use domain_core::bits::question::Question;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use web_sys::*;
+
+macro_rules! err_response {
+    ($x:expr) => {
+        match $x {
+            Ok(b) => b,
+            Err(err) => {
+                return Response::new_with_opt_str_and_init(
+                    Some(&err),
+                    ResponseInit::new().status(400),
+                )
+                .unwrap()
+            }
+        }
+    };
+}
 
 async_static! {
     // Cache of a single Server object to avoid parsing config
@@ -20,11 +36,17 @@ pub struct ServerOptions {
 
 pub struct Server {
     options: ServerOptions,
+    client: Client
 }
 
 impl Server {
     fn new(options: ServerOptions) -> Server {
-        Server { options }
+        Server {
+            client: Client::new(ClientOptions {
+                upstream_urls: options.upstream_urls.clone()
+            }),
+            options
+        }
     }
 
     // The server initialization process might become truly async in the future
@@ -38,17 +60,10 @@ impl Server {
     }
 
     pub async fn handle_request(&self, ev: ExtendableEvent, req: Request) -> Response {
-        let body = match Self::parse_dns_body(&req).await {
-            Ok(b) => b,
-            Err(err) => {
-                return Response::new_with_opt_str_and_init(
-                    Some(&err),
-                    ResponseInit::new().status(400),
-                )
-                .unwrap()
-            }
-        };
-        return Response::new_with_opt_str_and_init(Some(&format!("{:?}", body)), ResponseInit::new().status(200))
+        let body = err_response!(Self::parse_dns_body(&req).await);
+        let questions = err_response!(Self::extract_questions(body));
+        let records = err_response!(self.client.query(questions).await);
+        return Response::new_with_opt_str_and_init(Some(&format!("{:?}", records)), ResponseInit::new().status(200))
             .unwrap();
     }
 
@@ -75,6 +90,7 @@ impl Server {
             }
         } else if method == "POST" {
             // POST request -- DNS wireformat
+            // TODO: implement this properly (need a way to read body to [u8])
             let headers = req.headers();
             if !headers.has("Content-Type").unwrap() {
                 return Err("Missing Content-Type header".to_string());
@@ -90,5 +106,19 @@ impl Server {
         let bytes = Bytes::from(msg);
         Message::from_bytes(bytes)
             .map_err(|_| "Failed to parse DNS wireformat message".to_string())
+    }
+
+    fn extract_questions(msg: Message) -> Result<Vec<Question<ParsedDname>>, String> {
+        let question_section = msg.question();
+        let questions: Vec<_> = question_section.collect();
+        if questions.len() == 0 {
+            return Err("No question provided".to_string());
+        }
+
+        let mut ret: Vec<Question<ParsedDname>> = Vec::new();
+        for q in questions {
+            ret.push(q.map_err(|_| "Failed to parse domain name".to_string())?)
+        }
+        Ok(ret)
     }
 }
