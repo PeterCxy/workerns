@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 
 use async_static::async_static;
+use bytes::Bytes;
 use domain_core::bits::message::Message;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -47,7 +48,7 @@ impl Server {
                 .unwrap()
             }
         };
-        return Response::new_with_opt_str_and_init(Some("hello"), ResponseInit::new().status(200))
+        return Response::new_with_opt_str_and_init(Some(&format!("{:?}", body)), ResponseInit::new().status(200))
             .unwrap();
     }
 
@@ -58,6 +59,36 @@ impl Server {
         // if we have URL param "name" in GET, then it's dns-json
         // Note that the return type can be different from the request type
         // e.g. a dns-message request can accept dns-json return
-        todo!()
+        let method = req.method();
+        if method == "GET" {
+            // GET request -- DNS wireformat or JSON
+            // TODO: implement JSON
+            let url = Url::new(&req.url()).map_err(|_| "Invalid url")?;
+            let params = url.search_params();
+            if params.has("dns") {
+                // base64-encoded DNS wireformat via GET
+                let decoded = base64::decode(params.get("dns").unwrap())
+                    .map_err(|_| "Failed to decode base64 DNS request")?;
+                return Self::parse_dns_wireformat(&decoded);
+            } else {
+                return Err("Missing supported GET parameters".to_string());
+            }
+        } else if method == "POST" {
+            // POST request -- DNS wireformat
+            let headers = req.headers();
+            if !headers.has("Content-Type").unwrap() {
+                return Err("Missing Content-Type header".to_string());
+            }
+
+            todo!()
+        } else {
+            return Err(format!("Unsupported method {}", method))
+        }
+    }
+
+    fn parse_dns_wireformat(msg: &[u8]) -> Result<Message, String> {
+        let bytes = Bytes::from(msg);
+        Message::from_bytes(bytes)
+            .map_err(|_| "Failed to parse DNS wireformat message".to_string())
     }
 }
