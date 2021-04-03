@@ -44,6 +44,7 @@ impl Client {
     // it first, and we also want to be able to do caching and overriding
     fn build_query(questions: Vec<Question<ParsedDname>>) -> Result<Message, String> {
         let mut builder = MessageBuilder::new_udp();
+        builder.header_mut().set_random_id();
         for q in questions {
             builder
                 .push(q)
