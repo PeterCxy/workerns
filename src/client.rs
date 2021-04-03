@@ -4,6 +4,7 @@ use domain_core::bits::question::Question;
 use domain_core::bits::record::ParsedRecord;
 use domain_core::bits::record::Record;
 use domain_core::bits::{ParsedDname, SectionBuilder};
+use domain_core::iana::Opcode;
 use domain_core::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Math, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
@@ -44,9 +45,13 @@ impl Client {
     // it first, and we also want to be able to do caching and overriding
     fn build_query(questions: Vec<Question<ParsedDname>>) -> Result<Message, String> {
         let mut builder = MessageBuilder::new_udp();
-        builder
-            .header_mut()
-            .set_id((unsafe { Math::random() } * u16::MAX as f64) as u16);
+        // Set up the header
+        let header = builder.header_mut();
+        header.set_id((unsafe { Math::random() } * u16::MAX as f64) as u16);
+        header.set_qr(false); // For queries, QR = false
+        header.set_opcode(Opcode::Query);
+        header.set_rd(true); // Ask for recursive queries
+        // Set up the questions
         for q in questions {
             builder
                 .push(q)
