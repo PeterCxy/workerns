@@ -1,6 +1,6 @@
-mod util;
 mod client;
 mod server;
+mod util;
 
 use cfg_if::cfg_if;
 use wasm_bindgen::prelude::*;

@@ -15,6 +15,5 @@ extern "C" {
 
 pub fn parse_dns_wireformat(msg: &[u8]) -> Result<Message, String> {
     let bytes = Bytes::from(msg);
-    Message::from_bytes(bytes)
-        .map_err(|_| "Failed to parse DNS wireformat message".to_string())
+    Message::from_bytes(bytes).map_err(|_| "Failed to parse DNS wireformat message".to_string())
 }

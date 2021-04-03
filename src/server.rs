@@ -1,12 +1,12 @@
 use crate::client::*;
 use async_static::async_static;
 use bytes::Bytes;
-use domain_core::bits::{ParsedDname, RecordSectionBuilder, SectionBuilder};
-use domain_core::bits::ParsedRecord;
 use domain_core::bits::message::Message;
 use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
 use domain_core::bits::record::Record;
+use domain_core::bits::ParsedRecord;
+use domain_core::bits::{ParsedDname, RecordSectionBuilder, SectionBuilder};
 use domain_core::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
@@ -38,7 +38,7 @@ async_static! {
 
 enum DnsResponseFormat {
     WireFormat,
-    JsonFormat
+    JsonFormat,
 }
 
 #[derive(Deserialize)]
@@ -48,16 +48,16 @@ pub struct ServerOptions {
 
 pub struct Server {
     options: ServerOptions,
-    client: Client
+    client: Client,
 }
 
 impl Server {
     fn new(options: ServerOptions) -> Server {
         Server {
             client: Client::new(ClientOptions {
-                upstream_urls: options.upstream_urls.clone()
+                upstream_urls: options.upstream_urls.clone(),
             }),
-            options
+            options,
         }
     }
 
@@ -79,25 +79,24 @@ impl Server {
         let resp_format = Self::get_response_format(&req);
 
         let mut resp_body = err_response!(match &resp_format {
-            &DnsResponseFormat::WireFormat => Self::build_answer_wireformat(query_id, records)
-                .map(|x| x.as_slice().to_owned()),
-            &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string())
+            &DnsResponseFormat::WireFormat =>
+                Self::build_answer_wireformat(query_id, records).map(|x| x.as_slice().to_owned()),
+            &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string()),
         });
         let resp_content_type = match resp_format {
             DnsResponseFormat::WireFormat => "application/dns-message",
-            DnsResponseFormat::JsonFormat => "application/dns-json"
+            DnsResponseFormat::JsonFormat => "application/dns-json",
         };
 
         // Build the response
-        let mut resp_headers = err_response!(Headers::new()
-            .map_err(|_| "Could not create headers".to_string()));
-        err_response!(resp_headers.append("Content-Type", resp_content_type)
+        let mut resp_headers =
+            err_response!(Headers::new().map_err(|_| "Could not create headers".to_string()));
+        err_response!(resp_headers
+            .append("Content-Type", resp_content_type)
             .map_err(|_| "Could not create headers".to_string()));
         let mut resp_init = ResponseInit::new();
-        resp_init.status(200)
-            .headers(&resp_headers);
-        return Response::new_with_opt_u8_array_and_init(Some(&mut resp_body), &resp_init)
-            .unwrap();
+        resp_init.status(200).headers(&resp_headers);
+        return Response::new_with_opt_u8_array_and_init(Some(&mut resp_body), &resp_init).unwrap();
     }
 
     async fn parse_dns_body(req: &Request) -> Result<Message, String> {
@@ -125,7 +124,8 @@ impl Server {
                 return Err("Unsupported Content-Type".to_string());
             }
 
-            let req_body = req.array_buffer()
+            let req_body = req
+                .array_buffer()
                 .map_err(|_| "Failed to read request body".to_string())?;
             let req_body: ArrayBuffer = JsFuture::from(req_body)
                 .await
@@ -133,7 +133,7 @@ impl Server {
                 .into();
             return crate::util::parse_dns_wireformat(&Uint8Array::new(&req_body).to_vec());
         } else {
-            return Err(format!("Unsupported method {}", method))
+            return Err(format!("Unsupported method {}", method));
         }
     }
 
@@ -160,16 +160,20 @@ impl Server {
         match headers.get("Accept").unwrap().unwrap().borrow() {
             "application/dns-message" => DnsResponseFormat::WireFormat,
             "application/dns-json" => DnsResponseFormat::JsonFormat,
-            _ => DnsResponseFormat::WireFormat
+            _ => DnsResponseFormat::WireFormat,
         }
     }
 
-    fn build_answer_wireformat(id: u16, records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>) -> Result<Message, String> {
+    fn build_answer_wireformat(
+        id: u16,
+        records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>,
+    ) -> Result<Message, String> {
         let mut message_builder = MessageBuilder::new_udp();
         message_builder.header_mut().set_id(id);
         let mut answer_builder = message_builder.answer();
         for r in records {
-            answer_builder.push(r)
+            answer_builder
+                .push(r)
                 .map_err(|_| "Max answer size exceeded".to_string())?;
         }
         Ok(answer_builder.freeze())
