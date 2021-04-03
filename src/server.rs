@@ -1,10 +1,15 @@
 use crate::client::*;
 use async_static::async_static;
 use bytes::Bytes;
-use domain_core::bits::ParsedDname;
+use domain_core::bits::{ParsedDname, RecordSectionBuilder, SectionBuilder};
+use domain_core::bits::ParsedRecord;
 use domain_core::bits::message::Message;
+use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
+use domain_core::bits::record::Record;
+use domain_core::rdata::AllRecordData;
 use serde::Deserialize;
+use std::borrow::Borrow;
 use wasm_bindgen::prelude::*;
 use web_sys::*;
 
@@ -27,6 +32,11 @@ async_static! {
     // Cache of a single Server object to avoid parsing config
     // multiple times
     static ref SERVER: Server = Server::init().await;
+}
+
+enum DnsResponseFormat {
+    WireFormat,
+    JsonFormat
 }
 
 #[derive(Deserialize)]
@@ -63,7 +73,27 @@ impl Server {
         let body = err_response!(Self::parse_dns_body(&req).await);
         let questions = err_response!(Self::extract_questions(body));
         let records = err_response!(self.client.query(questions).await);
-        return Response::new_with_opt_str_and_init(Some(&format!("{:?}", records)), ResponseInit::new().status(200))
+        let resp_format = Self::get_response_format(&req);
+
+        let mut resp_body = err_response!(match &resp_format {
+            &DnsResponseFormat::WireFormat => Self::build_answer_wireformat(records)
+                .map(|x| x.as_slice().to_owned()),
+            &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string())
+        });
+        let resp_content_type = match resp_format {
+            DnsResponseFormat::WireFormat => "application/dns-message",
+            DnsResponseFormat::JsonFormat => "application/dns-json"
+        };
+
+        // Build the response
+        let mut resp_headers = err_response!(Headers::new()
+            .map_err(|_| "Could not create headers".to_string()));
+        err_response!(resp_headers.append("Content-Type", resp_content_type)
+            .map_err(|_| "Could not create headers".to_string()));
+        let mut resp_init = ResponseInit::new();
+        resp_init.status(200)
+            .headers(&resp_headers);
+        return Response::new_with_opt_u8_array_and_init(Some(&mut resp_body), &resp_init)
             .unwrap();
     }
 
@@ -114,5 +144,27 @@ impl Server {
             ret.push(q.map_err(|_| "Failed to parse domain name".to_string())?)
         }
         Ok(ret)
+    }
+
+    fn get_response_format(req: &Request) -> DnsResponseFormat {
+        let headers = req.headers();
+        if !headers.has("Accept").unwrap() {
+            return DnsResponseFormat::WireFormat;
+        }
+
+        match headers.get("Accept").unwrap().unwrap().borrow() {
+            "application/dns-message" => DnsResponseFormat::WireFormat,
+            "application/dns-json" => DnsResponseFormat::JsonFormat,
+            _ => DnsResponseFormat::WireFormat
+        }
+    }
+
+    fn build_answer_wireformat(records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>) -> Result<Message, String> {
+        let mut message_builder = MessageBuilder::new_udp().answer();
+        for r in records {
+            message_builder.push(r)
+                .map_err(|_| "Max answer size exceeded".to_string())?;
+        }
+        Ok(message_builder.freeze())
     }
 }

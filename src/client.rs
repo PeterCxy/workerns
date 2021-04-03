@@ -3,6 +3,8 @@ use domain_core::bits::message::Message;
 use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
 use domain_core::bits::record::ParsedRecord;
+use domain_core::bits::record::Record;
+use domain_core::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Math, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
@@ -21,7 +23,7 @@ impl Client {
         Client { options }
     }
 
-    pub async fn query(&self, questions: Vec<Question<ParsedDname>>) -> Result<Vec<ParsedRecord>, String> {
+    pub async fn query(&self, questions: Vec<Question<ParsedDname>>) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
         let msg = Self::build_query(questions)?;
         let upstream = self.select_upstream();
         let resp = Self::do_query(&upstream, msg).await?;
@@ -78,7 +80,7 @@ impl Client {
         crate::util::parse_dns_wireformat(&Uint8Array::new(&resp_body).to_vec())
     }
 
-    fn extract_answers(msg: Message) -> Result<Vec<ParsedRecord>, String> {
+    fn extract_answers(msg: Message) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
         let answer_section = msg.answer()
             .map_err(|_| "Failed to parse DNS answer from upstream".to_string())?;
         // Answers can be empty; that is when upstream has no records for the questions
@@ -86,9 +88,13 @@ impl Client {
         // this is different from the server impl
         let answers: Vec<_> = answer_section.collect();
 
-        let mut ret: Vec<ParsedRecord> = Vec::new();
+        let mut ret: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>> = Vec::new();
         for a in answers {
-            ret.push(a.map_err(|_| "Failed to parse DNS answer record".to_string())?);
+            let parsed_record = a.map_err(|_| "Failed to parse DNS answer record".to_string())?;
+            let record: Record<ParsedDname, AllRecordData<ParsedDname>> = parsed_record.to_record()
+                .map_err(|_| "Cannot parse record".to_string())?
+                .ok_or("Cannot parse record".to_string())?;
+            ret.push(record);
         }
         Ok(ret)
     }
