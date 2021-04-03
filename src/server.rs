@@ -84,7 +84,7 @@ impl Server {
                 // base64-encoded DNS wireformat via GET
                 let decoded = base64::decode(params.get("dns").unwrap())
                     .map_err(|_| "Failed to decode base64 DNS request")?;
-                return Self::parse_dns_wireformat(&decoded);
+                return crate::util::parse_dns_wireformat(&decoded);
             } else {
                 return Err("Missing supported GET parameters".to_string());
             }
@@ -100,12 +100,6 @@ impl Server {
         } else {
             return Err(format!("Unsupported method {}", method))
         }
-    }
-
-    fn parse_dns_wireformat(msg: &[u8]) -> Result<Message, String> {
-        let bytes = Bytes::from(msg);
-        Message::from_bytes(bytes)
-            .map_err(|_| "Failed to parse DNS wireformat message".to_string())
     }
 
     fn extract_questions(msg: Message) -> Result<Vec<Question<ParsedDname>>, String> {
