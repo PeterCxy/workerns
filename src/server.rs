@@ -101,12 +101,6 @@ impl Server {
     }
 
     async fn parse_dns_body(req: &Request) -> Result<Message, String> {
-        // if we have URL param "dns" in GET, then it's dns-message
-        // if we have "content-type: application/dns-message" in POST,
-        // it's dns-message POST
-        // if we have URL param "name" in GET, then it's dns-json
-        // Note that the return type can be different from the request type
-        // e.g. a dns-message request can accept dns-json return
         let method = req.method();
         if method == "GET" {
             // GET request -- DNS wireformat or JSON
