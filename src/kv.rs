@@ -50,29 +50,6 @@ pub struct KvGetOptions {
     data_type: String,
 }
 
-// Wrapper over JsKvGetMetadata
-// response of KV.getWithMetadata
-pub struct KvGetMetadata {
-    value: Option<JsValue>,
-    // Metadata should always be pure JSON object; not class instances or buffers
-    metadata: Option<serde_json::Value>,
-}
-
-impl KvGetMetadata {
-    fn wrap(inner: JsKvGetMetadata) -> KvGetMetadata {
-        let value = inner.value();
-        let metadata = inner.metadata();
-        KvGetMetadata {
-            value: if value.is_null() { None } else { Some(value) },
-            metadata: if metadata.is_null() {
-                None
-            } else {
-                Some(metadata.into_serde().unwrap())
-            },
-        }
-    }
-}
-
 pub struct KvNamespace {
     inner: JsKvNamespace,
 }
@@ -109,6 +86,8 @@ impl KvNamespace {
         }
     }
 
+    // Get a buffer value from KV with its metadata
+    // we assume that all metadata are pure JSON objects (Deserialize)
     pub async fn get_buf_metadata<T: for<'de> Deserialize<'de>>(
         &self,
         key: &str,
@@ -129,14 +108,19 @@ impl KvNamespace {
             return (None, None);
         }
 
-        let value = KvGetMetadata::wrap(obj.into());
+        let obj: JsKvGetMetadata = obj.into();
 
         (
-            value.value.map(|v| Uint8Array::new(&v).to_vec()),
-            value
-                .metadata
-                .map(|v| serde_json::from_value(v).ok())
-                .flatten(),
+            if obj.value().is_null() {
+                None
+            } else {
+                Some(Uint8Array::new(&obj.value()).to_vec())
+            },
+            if obj.metadata().is_null() {
+                None
+            } else {
+                obj.metadata().into_serde().ok()
+            },
         )
     }
 }
