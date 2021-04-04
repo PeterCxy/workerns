@@ -3,7 +3,7 @@ use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
 use domain_core::bits::record::Record;
 use domain_core::bits::{ParsedDname, SectionBuilder};
-use domain_core::iana::Opcode;
+use domain_core::iana::{Opcode, Rcode};
 use domain_core::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
@@ -30,7 +30,12 @@ impl Client {
         let msg = Self::build_query(questions)?;
         let upstream = self.select_upstream();
         let resp = Self::do_query(&upstream, msg).await?;
-        Self::extract_answers(resp)
+
+        match resp.header().rcode() {
+            Rcode::NoError => Self::extract_answers(resp),
+            Rcode::NXDomain => Ok(Vec::new()),
+            rcode => Err(format!("Server error: {}", rcode))
+        }
     }
 
     pub async fn query_with_retry(
