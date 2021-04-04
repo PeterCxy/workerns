@@ -6,7 +6,7 @@ use domain_core::bits::record::Record;
 use domain_core::bits::{ParsedDname, SectionBuilder};
 use domain_core::iana::Opcode;
 use domain_core::rdata::AllRecordData;
-use js_sys::{ArrayBuffer, Math, Uint8Array};
+use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
 
@@ -51,7 +51,7 @@ impl Client {
 
     // Select an upstream randomly
     fn select_upstream(&self) -> String {
-        let idx = unsafe { Math::random() } * self.options.upstream_urls.len() as f64;
+        let idx = crate::util::random() * self.options.upstream_urls.len() as f64;
         self.options.upstream_urls[idx as usize].clone()
     }
 
@@ -62,7 +62,7 @@ impl Client {
         let mut builder = MessageBuilder::new_udp();
         // Set up the header
         let header = builder.header_mut();
-        header.set_id((unsafe { Math::random() } * u16::MAX as f64) as u16);
+        header.set_id((crate::util::random() * u16::MAX as f64) as u16);
         header.set_qr(false); // For queries, QR = false
         header.set_opcode(Opcode::Query);
         header.set_rd(true); // Ask for recursive queries
@@ -93,7 +93,7 @@ impl Client {
 
         let request = Request::new_with_str_and_init(upstream, &request_init)
             .map_err(|_| "Failed to create Request object".to_string())?;
-        let resp: Response = JsFuture::from(unsafe { crate::util::fetch(&request) })
+        let resp: Response = crate::util::fetch_rs(&request)
             .await
             .map_err(|_| "Upstream request error".to_string())?
             .into();
