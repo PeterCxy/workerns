@@ -33,6 +33,8 @@ impl Client {
 
         match resp.header().rcode() {
             Rcode::NoError => Self::extract_answers(resp),
+            // NXDOMAIN is not an error we want to retry / panic upon
+            // It simply means the domain doesn't exist
             Rcode::NXDomain => Ok(Vec::new()),
             rcode => Err(format!("Server error: {}", rcode)),
         }
