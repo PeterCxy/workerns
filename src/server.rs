@@ -1,6 +1,6 @@
 use crate::client::*;
 use async_static::async_static;
-use domain::base::iana::Rcode;
+use domain::base::iana::{Opcode, Rcode};
 use domain::base::message::Message;
 use domain::base::message_builder::MessageBuilder;
 use domain::base::question::Question;
@@ -76,14 +76,15 @@ impl Server {
         let questions = err_response!(Self::extract_questions(body));
         let records = err_response!(
             self.client
-                .query_with_retry(questions, self.options.retries)
+                .query_with_retry(questions.clone(), self.options.retries)
                 .await
         );
         let resp_format = Self::get_response_format(&req);
 
         let mut resp_body = err_response!(match &resp_format {
             &DnsResponseFormat::WireFormat =>
-                Self::build_answer_wireformat(query_id, records).map(|x| x.as_slice().to_owned()),
+                Self::build_answer_wireformat(query_id, questions, records)
+                    .map(|x| x.as_slice().to_owned()),
             &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string()),
         });
         let resp_content_type = match resp_format {
@@ -188,12 +189,14 @@ impl Server {
 
     fn build_answer_wireformat(
         id: u16,
+        questions: Vec<Question<Dname<Vec<u8>>>>,
         records: Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>,
     ) -> Result<Message<Vec<u8>>, String> {
         let mut message_builder = MessageBuilder::new_vec();
         // Set up the response header
         let header = message_builder.header_mut();
         header.set_id(id);
+        header.set_opcode(Opcode::Query);
         header.set_qr(true); // Query Response = true
         header.set_aa(false); // Not Authoritative
         header.set_ra(true); // Recursion Available
@@ -202,8 +205,17 @@ impl Server {
             header.set_rcode(Rcode::NXDomain);
         }
 
+        // Set up the questions section
+        // (the DNS response should include the original questions)
+        let mut question_builder = message_builder.question();
+        for q in questions {
+            question_builder
+                .push(q)
+                .map_err(|_| "Max question size exceeded".to_string())?;
+        }
+
         // Set up the answer section
-        let mut answer_builder = message_builder.answer();
+        let mut answer_builder = question_builder.answer();
         for r in records {
             answer_builder
                 .push(r)
