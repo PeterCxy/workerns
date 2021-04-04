@@ -1,3 +1,4 @@
+use crate::cache::DnsCache;
 use domain::base::iana::{Opcode, Rcode};
 use domain::base::message::Message;
 use domain::base::message_builder::MessageBuilder;
@@ -16,23 +17,40 @@ pub struct ClientOptions {
 // The DNS client implementation
 pub struct Client {
     options: ClientOptions,
+    cache: DnsCache,
 }
 
 impl Client {
     pub fn new(options: ClientOptions) -> Client {
-        Client { options }
+        Client {
+            options,
+            cache: DnsCache::new(),
+        }
     }
 
     pub async fn query(
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
     ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
+        // Attempt to read from cache first
+        let (mut cached_answers, questions) = self.try_answer_from_cache(questions).await;
+        if questions.len() == 0 {
+            // No remaining questions to be handled. Return directly.
+            return Ok(cached_answers);
+        }
+
         let msg = Self::build_query(questions)?;
         let upstream = self.select_upstream();
         let resp = Self::do_query(&upstream, msg).await?;
 
         match resp.header().rcode() {
-            Rcode::NoError => Self::extract_answers(resp),
+            Rcode::NoError => {
+                let mut ret = Self::extract_answers(resp)?;
+                self.cache_answers(&ret).await;
+                // Concatenate the cached answers we retrived previously with the newly-fetched answers
+                ret.append(&mut cached_answers);
+                Ok(ret)
+            }
             // NXDOMAIN is not an error we want to retry / panic upon
             // It simply means the domain doesn't exist
             Rcode::NXDomain => Ok(Vec::new()),
@@ -161,5 +179,34 @@ impl Client {
             ret.push(owned_record);
         }
         Ok(ret)
+    }
+
+    // Try to answer the questions as much as we can from the cache
+    // returns the available answers, and the remaining questions that cannot be
+    // answered from cache
+    async fn try_answer_from_cache(
+        &self,
+        questions: Vec<Question<Dname<Vec<u8>>>>,
+    ) -> (
+        Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>,
+        Vec<Question<Dname<Vec<u8>>>>,
+    ) {
+        let mut answers = Vec::new();
+        let mut remaining = Vec::new();
+        for q in questions {
+            match self.cache.get_cache(&q).await {
+                Some(ans) => answers.push(ans),
+                None => remaining.push(q),
+            }
+        }
+        (answers, remaining)
+    }
+
+    #[allow(unused_must_use)]
+    async fn cache_answers(&self, answers: &[Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>]) {
+        for a in answers {
+            // Ignore error -- we don't really care
+            self.cache.put_cache(a).await;
+        }
     }
 }

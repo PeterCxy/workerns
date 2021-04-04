@@ -1,4 +1,6 @@
+mod cache;
 mod client;
+mod kv;
 mod server;
 mod util;
 
