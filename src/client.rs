@@ -68,6 +68,8 @@ impl Client {
         let mut builder = MessageBuilder::new_vec();
         // Set up the header
         let header = builder.header_mut();
+        // We don't use set_random_id because `getrandom` seems to be
+        // unreliable on Cloudflare Workers for some reason
         header.set_id(crate::util::random_range(0, u16::MAX));
         header.set_qr(false); // For queries, QR = false
         header.set_opcode(Opcode::Query);
