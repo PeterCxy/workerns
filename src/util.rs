@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use domain_core::bits::message::Message;
 use js_sys::{Math, Promise};
-use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::Request;
 
