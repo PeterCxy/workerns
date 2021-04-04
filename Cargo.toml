@@ -10,9 +10,6 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["console_error_panic_hook"]
 
-[build]
-target = "wasm32-unknown-unknown"
-
 [dependencies]
 async_static = "0.1"
 base64 = "0.13"
