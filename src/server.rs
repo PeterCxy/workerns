@@ -1,5 +1,6 @@
 use crate::client::*;
 use async_static::async_static;
+use domain::base::iana::Rcode;
 use domain::base::message::Message;
 use domain::base::message_builder::MessageBuilder;
 use domain::base::question::Question;
@@ -196,6 +197,10 @@ impl Server {
         header.set_qr(true); // Query Response = true
         header.set_aa(false); // Not Authoritative
         header.set_ra(true); // Recursion Available
+        if records.len() == 0 {
+            // Set NXDOMAIN if no record is found
+            header.set_rcode(Rcode::NXDomain);
+        }
 
         // Set up the answer section
         let mut answer_builder = message_builder.answer();
