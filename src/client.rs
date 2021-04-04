@@ -195,7 +195,7 @@ impl Client {
         let mut remaining = Vec::new();
         for q in questions {
             match self.cache.get_cache(&q).await {
-                Some(ans) => answers.push(ans),
+                Some(mut ans) => answers.append(&mut ans),
                 None => remaining.push(q),
             }
         }

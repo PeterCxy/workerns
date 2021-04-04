@@ -1,6 +1,7 @@
 use domain::base::message::Message;
 use js_sys::{Math, Promise};
 use std::ops::Add;
+use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
@@ -48,4 +49,12 @@ impl FromFloat<f64> for u16 {
     fn from_float(f: f64) -> u16 {
         f as u16
     }
+}
+
+// Calculate a hash value from a u8 slice
+// used for generating answer cache keys
+pub fn hash_buf(buf: &[u8]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hasher.write(buf);
+    hasher.finish()
 }

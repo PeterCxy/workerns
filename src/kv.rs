@@ -27,6 +27,8 @@ extern "C" {
     ) -> Promise;
     #[wasm_bindgen(method, js_name = "getWithMetadata")]
     pub fn get_with_metadata_opts(this: &JsKvNamespace, key: &str, opts: JsValue) -> Promise;
+    #[wasm_bindgen(method)]
+    pub fn list(this: &JsKvNamespace, opts: JsValue) -> Promise;
 }
 
 // wasm-bindgen types are not Send + Sync, thus not usable in async_static
@@ -48,6 +50,25 @@ pub struct KvPutOptions {
 pub struct KvGetOptions {
     #[serde(rename = "type")]
     data_type: String,
+}
+
+#[derive(Serialize)]
+pub struct KvListOptions {
+    prefix: Option<String>,
+    limit: Option<u64>, // 1000 is default
+    cursor: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct KvListKey {
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct KvListResult {
+    pub keys: Vec<KvListKey>,
+    pub list_complete: bool,
+    pub cursor: Option<String>,
 }
 
 pub struct KvNamespace {
@@ -122,6 +143,23 @@ impl KvNamespace {
                 obj.metadata().into_serde().ok()
             },
         )
+    }
+
+    // List KV keys by prefix only
+    pub async fn list_prefix(&self, prefix: &str) -> Result<KvListResult, String> {
+        let promise = self.inner.list(
+            JsValue::from_serde(&KvListOptions {
+                prefix: Some(prefix.to_string()),
+                limit: None,
+                cursor: None,
+            })
+            .unwrap(),
+        );
+        let res = JsFuture::from(promise)
+            .await
+            .map_err(|_| "Could not list KV by prefix".to_string())?;
+        res.into_serde()
+            .map_err(|_| "Could not parse return value from KV listing".to_string())
     }
 }
 
