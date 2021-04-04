@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use domain_core::bits::message::Message;
 use js_sys::{Math, Promise};
+use std::ops::Add;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
@@ -31,4 +32,21 @@ pub async fn fetch_rs(req: &Request) -> Result<JsValue, JsValue> {
 #[allow(unused_unsafe)]
 pub fn random() -> f64 {
     unsafe { Math::random() }
+}
+
+pub fn random_range<T>(min: T, max: T) -> T
+where
+    T: Ord + Into<f64> + FromFloat<f64> + Add<Output = T>,
+{
+    min + T::from_float(random() * max.into())
+}
+
+pub trait FromFloat<F> {
+    fn from_float(f: F) -> Self;
+}
+
+impl FromFloat<f64> for u16 {
+    fn from_float(f: f64) -> u16 {
+        f as u16
+    }
 }

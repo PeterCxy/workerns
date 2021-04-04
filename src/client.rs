@@ -50,7 +50,7 @@ impl Client {
 
     // Select an upstream randomly
     fn select_upstream(&self) -> String {
-        let idx = crate::util::random() * self.options.upstream_urls.len() as f64;
+        let idx = crate::util::random_range(0, self.options.upstream_urls.len() as u16);
         self.options.upstream_urls[idx as usize].clone()
     }
 
@@ -61,7 +61,7 @@ impl Client {
         let mut builder = MessageBuilder::new_udp();
         // Set up the header
         let header = builder.header_mut();
-        header.set_id((crate::util::random() * u16::MAX as f64) as u16);
+        header.set_id(crate::util::random_range(0, u16::MAX));
         header.set_qr(false); // For queries, QR = false
         header.set_opcode(Opcode::Query);
         header.set_rd(true); // Ask for recursive queries
