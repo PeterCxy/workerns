@@ -1,17 +1,14 @@
 use crate::client::*;
 use async_static::async_static;
-use bytes::Bytes;
 use domain_core::bits::message::Message;
 use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
 use domain_core::bits::record::Record;
-use domain_core::bits::ParsedRecord;
 use domain_core::bits::{ParsedDname, RecordSectionBuilder, SectionBuilder};
 use domain_core::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
 use std::borrow::Borrow;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::*;
 
@@ -94,7 +91,7 @@ impl Server {
         };
 
         // Build the response
-        let mut resp_headers =
+        let resp_headers =
             err_response!(Headers::new().map_err(|_| "Could not create headers".to_string()));
         err_response!(resp_headers
             .append("Content-Type", resp_content_type)

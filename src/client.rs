@@ -1,7 +1,6 @@
 use domain_core::bits::message::Message;
 use domain_core::bits::message_builder::MessageBuilder;
 use domain_core::bits::question::Question;
-use domain_core::bits::record::ParsedRecord;
 use domain_core::bits::record::Record;
 use domain_core::bits::{ParsedDname, SectionBuilder};
 use domain_core::iana::Opcode;
@@ -40,7 +39,7 @@ impl Client {
         retries: usize,
     ) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
         let mut last_res = Err("Dummy".to_string());
-        for i in (0..retries) {
+        for _ in 0..retries {
             last_res = self.query(questions.clone()).await;
             if last_res.is_ok() {
                 break;
@@ -77,7 +76,7 @@ impl Client {
 
     async fn do_query(upstream: &str, msg: Message) -> Result<Message, String> {
         let body = Uint8Array::from(msg.as_slice());
-        let mut headers = Headers::new().map_err(|_| "Could not create headers".to_string())?;
+        let headers = Headers::new().map_err(|_| "Could not create headers".to_string())?;
         headers
             .append("Accept", "application/dns-message")
             .map_err(|_| "Could not append header".to_string())?;
