@@ -1,10 +1,10 @@
-use domain_core::bits::message::Message;
-use domain_core::bits::message_builder::MessageBuilder;
-use domain_core::bits::question::Question;
-use domain_core::bits::record::Record;
-use domain_core::bits::{ParsedDname, SectionBuilder};
-use domain_core::iana::{Opcode, Rcode};
-use domain_core::rdata::AllRecordData;
+use domain::base::iana::{Opcode, Rcode};
+use domain::base::message::Message;
+use domain::base::message_builder::MessageBuilder;
+use domain::base::question::Question;
+use domain::base::rdata::UnknownRecordData;
+use domain::base::record::Record;
+use domain::base::{Dname, ParsedDname, ToDname};
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
@@ -25,8 +25,8 @@ impl Client {
 
     pub async fn query(
         &self,
-        questions: Vec<Question<ParsedDname>>,
-    ) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
+        questions: Vec<Question<Dname<Vec<u8>>>>,
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
         let msg = Self::build_query(questions)?;
         let upstream = self.select_upstream();
         let resp = Self::do_query(&upstream, msg).await?;
@@ -34,15 +34,15 @@ impl Client {
         match resp.header().rcode() {
             Rcode::NoError => Self::extract_answers(resp),
             Rcode::NXDomain => Ok(Vec::new()),
-            rcode => Err(format!("Server error: {}", rcode))
+            rcode => Err(format!("Server error: {}", rcode)),
         }
     }
 
     pub async fn query_with_retry(
         &self,
-        questions: Vec<Question<ParsedDname>>,
+        questions: Vec<Question<Dname<Vec<u8>>>>,
         retries: usize,
-    ) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
         let mut last_res = Err("Dummy".to_string());
         for _ in 0..retries {
             last_res = self.query(questions.clone()).await;
@@ -62,24 +62,26 @@ impl Client {
     // Build UDP wireformat query from a list of questions
     // We don't use the client's query directly because we want to validate
     // it first, and we also want to be able to do caching and overriding
-    fn build_query(questions: Vec<Question<ParsedDname>>) -> Result<Message, String> {
-        let mut builder = MessageBuilder::new_udp();
+    fn build_query(questions: Vec<Question<Dname<Vec<u8>>>>) -> Result<Message<Vec<u8>>, String> {
+        let mut builder = MessageBuilder::new_vec();
         // Set up the header
         let header = builder.header_mut();
         header.set_id(crate::util::random_range(0, u16::MAX));
         header.set_qr(false); // For queries, QR = false
         header.set_opcode(Opcode::Query);
         header.set_rd(true); // Ask for recursive queries
-                             // Set up the questions
+
+        // Set up the questions
+        let mut question_builder = builder.question();
         for q in questions {
-            builder
+            question_builder
                 .push(q)
                 .map_err(|_| "Size limit exceeded".to_string())?;
         }
-        Ok(builder.freeze())
+        Ok(question_builder.into_message())
     }
 
-    async fn do_query(upstream: &str, msg: Message) -> Result<Message, String> {
+    async fn do_query(upstream: &str, msg: Message<Vec<u8>>) -> Result<Message<Vec<u8>>, String> {
         let body = Uint8Array::from(msg.as_slice());
         let headers = Headers::new().map_err(|_| "Could not create headers".to_string())?;
         headers
@@ -118,8 +120,8 @@ impl Client {
     }
 
     fn extract_answers(
-        msg: Message,
-    ) -> Result<Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>, String> {
+        msg: Message<Vec<u8>>,
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
         let answer_section = msg
             .answer()
             .map_err(|_| "Failed to parse DNS answer from upstream".to_string())?;
@@ -128,14 +130,31 @@ impl Client {
         // this is different from the server impl
         let answers: Vec<_> = answer_section.collect();
 
-        let mut ret: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>> = Vec::new();
+        let mut ret: Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>> = Vec::new();
         for a in answers {
             let parsed_record = a.map_err(|_| "Failed to parse DNS answer record".to_string())?;
-            let record: Record<ParsedDname, AllRecordData<ParsedDname>> = parsed_record
+            // Use UnknownRecordData here because we don't really care about the actual type of the record
+            // It saves time and saves sanity (because of the type signature of AllRecordData)
+            let record: Record<ParsedDname<&Vec<u8>>, UnknownRecordData<&[u8]>> = parsed_record
                 .to_record()
                 .map_err(|_| "Cannot parse record".to_string())?
                 .ok_or("Cannot parse record".to_string())?;
-            ret.push(record);
+            // Convert everything to owned for sanity in type signature...
+            // We'll need to do a copy before returning outside of the main
+            // query function anyway
+            let owned_record = Record::new(
+                record
+                    .owner()
+                    .to_dname::<Vec<u8>>()
+                    .map_err(|_| "Failed to parse Dname".to_string())?,
+                record.class(),
+                record.ttl(),
+                UnknownRecordData::from_octets(
+                    record.data().rtype(),
+                    record.data().data().to_vec(),
+                ),
+            );
+            ret.push(owned_record);
         }
         Ok(ret)
     }

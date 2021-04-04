@@ -16,10 +16,12 @@ target = "wasm32-unknown-unknown"
 [dependencies]
 async_static = "0.1"
 base64 = "0.13"
-bytes = "0.4"
 cfg-if = "1.0"
 console_error_panic_hook = { version = "0.1.6", optional = true }
-domain-core = "0.4"
+domain = "0.6"
+# domain uses rand, which in turn uses getrandom
+# we need to enable the `js` feature for it to build on WASM
+getrandom = { version = "0.2", features = [ "js" ] }
 js-sys = "0.3"
 # Required by async_static
 once_cell = "1"

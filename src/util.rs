@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use domain_core::bits::message::Message;
+use domain::base::message::Message;
 use js_sys::{Math, Promise};
 use std::ops::Add;
 use wasm_bindgen::prelude::*;
@@ -16,9 +15,9 @@ extern "C" {
     fn fetch(req: &Request) -> Promise;
 }
 
-pub fn parse_dns_wireformat(msg: &[u8]) -> Result<Message, String> {
-    let bytes = Bytes::from(msg);
-    Message::from_bytes(bytes).map_err(|_| "Failed to parse DNS wireformat message".to_string())
+pub fn parse_dns_wireformat(msg: &[u8]) -> Result<Message<Vec<u8>>, String> {
+    Message::from_octets(msg.to_owned())
+        .map_err(|_| "Failed to parse DNS wireformat message".to_string())
 }
 
 // Rust wrapper around JS functions

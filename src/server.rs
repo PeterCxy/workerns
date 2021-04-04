@@ -1,11 +1,11 @@
 use crate::client::*;
 use async_static::async_static;
-use domain_core::bits::message::Message;
-use domain_core::bits::message_builder::MessageBuilder;
-use domain_core::bits::question::Question;
-use domain_core::bits::record::Record;
-use domain_core::bits::{ParsedDname, RecordSectionBuilder, SectionBuilder};
-use domain_core::rdata::AllRecordData;
+use domain::base::message::Message;
+use domain::base::message_builder::MessageBuilder;
+use domain::base::question::Question;
+use domain::base::rdata::UnknownRecordData;
+use domain::base::record::Record;
+use domain::base::{Dname, ToDname};
 use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
 use std::borrow::Borrow;
@@ -101,7 +101,7 @@ impl Server {
         return Response::new_with_opt_u8_array_and_init(Some(&mut resp_body), &resp_init).unwrap();
     }
 
-    async fn parse_dns_body(req: &Request) -> Result<Message, String> {
+    async fn parse_dns_body(req: &Request) -> Result<Message<Vec<u8>>, String> {
         let method = req.method();
         if method == "GET" {
             // GET request -- DNS wireformat or JSON
@@ -139,7 +139,7 @@ impl Server {
         }
     }
 
-    fn extract_questions(msg: Message) -> Result<Vec<Question<ParsedDname>>, String> {
+    fn extract_questions(msg: Message<Vec<u8>>) -> Result<Vec<Question<Dname<Vec<u8>>>>, String> {
         // Validate the header first
         let header = msg.header();
         if header.qr() {
@@ -155,9 +155,19 @@ impl Server {
             return Err("No question provided".to_string());
         }
 
-        let mut ret: Vec<Question<ParsedDname>> = Vec::new();
+        let mut ret: Vec<Question<Dname<Vec<u8>>>> = Vec::new();
         for q in questions {
-            ret.push(q.map_err(|_| "Failed to parse domain name".to_string())?)
+            let parsed_question = q.map_err(|_| "Failed to parse domain name".to_string())?;
+            // Convert everything to owned for sanity...
+            let owned_question = Question::new(
+                parsed_question
+                    .qname()
+                    .to_dname::<Vec<u8>>()
+                    .map_err(|_| "Cannot parse Dname".to_string())?,
+                parsed_question.qtype(),
+                parsed_question.qclass(),
+            );
+            ret.push(owned_question)
         }
         Ok(ret)
     }
@@ -177,9 +187,9 @@ impl Server {
 
     fn build_answer_wireformat(
         id: u16,
-        records: Vec<Record<ParsedDname, AllRecordData<ParsedDname>>>,
-    ) -> Result<Message, String> {
-        let mut message_builder = MessageBuilder::new_udp();
+        records: Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>,
+    ) -> Result<Message<Vec<u8>>, String> {
+        let mut message_builder = MessageBuilder::new_vec();
         // Set up the response header
         let header = message_builder.header_mut();
         header.set_id(id);
@@ -194,6 +204,6 @@ impl Server {
                 .push(r)
                 .map_err(|_| "Max answer size exceeded".to_string())?;
         }
-        Ok(answer_builder.freeze())
+        Ok(answer_builder.into_message())
     }
 }
