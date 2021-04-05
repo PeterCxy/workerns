@@ -117,7 +117,7 @@ impl Server {
             let params = url.search_params();
             if params.has("dns") {
                 // base64-encoded DNS wireformat via GET
-                let decoded = base64::decode(params.get("dns").unwrap())
+                let decoded = base64::decode_config(params.get("dns").unwrap(), base64::URL_SAFE)
                     .map_err(|_| "Failed to decode base64 DNS request")?;
                 return crate::util::parse_dns_wireformat(&decoded);
             } else {
