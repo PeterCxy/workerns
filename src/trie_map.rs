@@ -14,6 +14,10 @@ impl<T> TrieMapNode<T> {
         return None;
     }
 
+    // Traverse the trie until no children matching the corresponding position
+    // in the key can be found anymore.
+    // Returns the last trie node matching the key, and the remainder of the key
+    // that cannot be matched to any branch of the sub-trie.
     fn traverse_trie_mut<'a, 'b>(
         &'a mut self,
         key: &'b [u8],
@@ -29,6 +33,10 @@ impl<T> TrieMapNode<T> {
         }
     }
 
+    // Same as traverse_trie_mut, except all references are not mutable,
+    // and an additional value -- the last non-null `value` while traversing
+    // the tree -- is returned. This value is the value mapped to the
+    // longest prefix in our record that matches the given key.
     fn traverse_trie_for_value<'a, 'b>(
         &'a self,
         key: &'b [u8],
