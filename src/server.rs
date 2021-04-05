@@ -75,7 +75,7 @@ impl Server {
         SERVER.await
     }
 
-    pub async fn handle_request(&self, ev: ExtendableEvent, req: Request) -> Response {
+    pub async fn handle_request(&self, _ev: ExtendableEvent, req: Request) -> Response {
         let body = err_response!(Self::parse_dns_body(&req).await);
         let query_id = body.header().id(); // random ID that needs to be preserved in response
         let questions = err_response!(Self::extract_questions(body));
