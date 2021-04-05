@@ -79,7 +79,7 @@ impl OverrideResolver {
             IpAddr::V6(addr) => (Rtype::Aaaa, AllRecordData::Aaaa(Aaaa::new(addr.clone()))),
         };
 
-        // Convert AllRecordData to UnknownRecordData to match the type
+        // Convert AllRecordData to UnknownRecordData to match the type signature
         // since our resolver client doesn't really care about the actual type
         let mut rdata_buf: Vec<u8> = Vec::new();
         rdata.compose(&mut rdata_buf).ok()?;
