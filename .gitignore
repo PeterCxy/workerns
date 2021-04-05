@@ -5,4 +5,4 @@
 /dist
 /worker
 /config.json
-/hosts.txt
+/blocklist.txt

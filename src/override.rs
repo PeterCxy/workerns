@@ -2,16 +2,21 @@ use crate::trie_map::TrieMap;
 use domain::base::{rdata::UnknownRecordData, Compose, Dname, Question, Record, Rtype};
 use domain::rdata::{Aaaa, AllRecordData, A};
 use lazy_static::lazy_static;
-use std::collections::HashMap;
-use std::net::IpAddr;
+use std::collections::{HashMap, HashSet};
+use std::net::{IpAddr, Ipv4Addr};
 
 lazy_static! {
-    static ref PLAIN_HOSTS_MAP: HashMap<String, IpAddr> = parse_plain_hosts_file();
+    // Put a simple blocklist of domains at ../blocklist.txt
+    // All domains in the file will be resolved to 0.0.0.0
+    // This can be used for ad-blocking, as converting the
+    // blocklists to JSON config file would not be a great idea,
+    // but converting them to a dumb list of domains should be trivial
+    static ref BLOCK_LIST: HashSet<String> = parse_blocklist_file();
 }
 
-fn parse_plain_hosts_file() -> HashMap<String, IpAddr> {
-    let mut ret = HashMap::new();
-    for line in include_str!("../hosts.txt").lines() {
+fn parse_blocklist_file() -> HashSet<String> {
+    let mut ret = HashSet::new();
+    for line in include_str!("../blocklist.txt").lines() {
         if line.is_empty() {
             continue;
         }
@@ -20,11 +25,7 @@ fn parse_plain_hosts_file() -> HashMap<String, IpAddr> {
             continue;
         }
 
-        if let [ip, domain] = line.split_whitespace().collect::<Vec<_>>().as_slice() {
-            if let Ok(addr) = ip.parse() {
-                ret.insert(domain.to_string(), addr);
-            }
-        }
+        ret.insert(line.trim().to_string());
     }
     ret
 }
@@ -84,8 +85,8 @@ impl OverrideResolver {
         let name = question.qname().to_string();
         if let Some(addr) = self.simple_matches.get(&name) {
             self.respond_with_addr(question, addr)
-        } else if let Some(addr) = PLAIN_HOSTS_MAP.get(&name) {
-            self.respond_with_addr(question, addr)
+        } else if BLOCK_LIST.get(&name).is_some() {
+            self.respond_with_addr(question, &IpAddr::V4(Ipv4Addr::UNSPECIFIED))
         } else if let Some(addr) = self
             .suffix_matches
             .get_by_prefix(name.chars().rev().collect::<String>())
