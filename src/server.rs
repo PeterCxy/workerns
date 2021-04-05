@@ -52,18 +52,18 @@ pub struct ServerOptions {
 }
 
 pub struct Server {
-    options: ServerOptions,
     client: Client,
+    retries: usize,
 }
 
 impl Server {
     fn new(options: ServerOptions) -> Server {
         Server {
             client: Client::new(
-                options.upstream_urls.clone(),
-                OverrideResolver::new(options.overrides.clone(), options.override_ttl),
+                options.upstream_urls,
+                OverrideResolver::new(options.overrides, options.override_ttl),
             ),
-            options,
+            retries: options.retries,
         }
     }
 
@@ -83,7 +83,7 @@ impl Server {
         let questions = err_response!(Self::extract_questions(body));
         let records = err_response!(
             self.client
-                .query_with_retry(questions.clone(), self.options.retries)
+                .query_with_retry(questions.clone(), self.retries)
                 .await
         );
         let resp_format = Self::get_response_format(&req);
