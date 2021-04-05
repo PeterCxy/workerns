@@ -3,6 +3,7 @@ mod client;
 mod kv;
 mod r#override;
 mod server;
+mod trie_map;
 mod util;
 
 use cfg_if::cfg_if;
