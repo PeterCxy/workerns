@@ -1,4 +1,5 @@
 use crate::cache::DnsCache;
+use crate::r#override::OverrideResolver;
 use domain::base::iana::{Opcode, Rcode};
 use domain::base::message::Message;
 use domain::base::message_builder::MessageBuilder;
@@ -18,13 +19,15 @@ pub struct ClientOptions {
 pub struct Client {
     options: ClientOptions,
     cache: DnsCache,
+    override_resolver: OverrideResolver,
 }
 
 impl Client {
-    pub fn new(options: ClientOptions) -> Client {
+    pub fn new(options: ClientOptions, override_resolver: OverrideResolver) -> Client {
         Client {
             options,
             cache: DnsCache::new(),
+            override_resolver,
         }
     }
 
@@ -32,11 +35,11 @@ impl Client {
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
     ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
-        // Attempt to read from cache first
-        let (mut cached_answers, questions) = self.try_answer_from_cache(questions).await;
+        // Attempt to answer locally first
+        let (mut local_answers, questions) = self.try_answer_from_local(questions).await;
         if questions.len() == 0 {
             // No remaining questions to be handled. Return directly.
-            return Ok(cached_answers);
+            return Ok(local_answers);
         }
 
         let msg = Self::build_query(questions)?;
@@ -48,7 +51,7 @@ impl Client {
                 let mut ret = Self::extract_answers(resp)?;
                 self.cache_answers(&ret).await;
                 // Concatenate the cached answers we retrived previously with the newly-fetched answers
-                ret.append(&mut cached_answers);
+                ret.append(&mut local_answers);
                 Ok(ret)
             }
             // NXDOMAIN is not an error we want to retry / panic upon
@@ -181,10 +184,10 @@ impl Client {
         Ok(ret)
     }
 
-    // Try to answer the questions as much as we can from the cache
+    // Try to answer the questions as much as we can from the cache / override map
     // returns the available answers, and the remaining questions that cannot be
-    // answered from cache
-    async fn try_answer_from_cache(
+    // answered from cache or the override resolver
+    async fn try_answer_from_local(
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
     ) -> (
@@ -194,9 +197,15 @@ impl Client {
         let mut answers = Vec::new();
         let mut remaining = Vec::new();
         for q in questions {
-            match self.cache.get_cache(&q).await {
-                Some(mut ans) => answers.append(&mut ans),
-                None => remaining.push(q),
+            if let Some(ans) = self.override_resolver.try_resolve(&q) {
+                // Try to resolve from override map first
+                answers.push(ans);
+            } else if let Some(mut ans) = self.cache.get_cache(&q).await {
+                // Then try cache
+                answers.append(&mut ans);
+            } else {
+                // If both failed, resolve via upstream
+                remaining.push(q);
             }
         }
         (answers, remaining)

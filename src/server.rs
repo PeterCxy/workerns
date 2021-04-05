@@ -1,4 +1,5 @@
 use crate::client::*;
+use crate::r#override::OverrideResolver;
 use async_static::async_static;
 use domain::base::iana::{Opcode, Rcode};
 use domain::base::message::Message;
@@ -10,6 +11,7 @@ use domain::base::{Dname, ToDname};
 use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
 use std::borrow::Borrow;
+use std::collections::HashMap;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::*;
 
@@ -43,6 +45,10 @@ enum DnsResponseFormat {
 pub struct ServerOptions {
     upstream_urls: Vec<String>,
     retries: usize,
+    #[serde(default)]
+    overrides: HashMap<String, String>,
+    #[serde(default)]
+    override_ttl: u32,
 }
 
 pub struct Server {
@@ -53,9 +59,12 @@ pub struct Server {
 impl Server {
     fn new(options: ServerOptions) -> Server {
         Server {
-            client: Client::new(ClientOptions {
-                upstream_urls: options.upstream_urls.clone(),
-            }),
+            client: Client::new(
+                ClientOptions {
+                    upstream_urls: options.upstream_urls.clone(),
+                },
+                OverrideResolver::new(options.overrides.clone(), options.override_ttl),
+            ),
             options,
         }
     }
