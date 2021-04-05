@@ -324,6 +324,7 @@ dependencies = [
  "domain",
  "getrandom",
  "js-sys",
+ "lazy_static",
  "once_cell",
  "serde",
  "serde_json",

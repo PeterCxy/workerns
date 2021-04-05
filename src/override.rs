@@ -1,8 +1,33 @@
 use crate::trie_map::TrieMap;
 use domain::base::{rdata::UnknownRecordData, Compose, Dname, Question, Record, Rtype};
 use domain::rdata::{Aaaa, AllRecordData, A};
+use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::net::IpAddr;
+
+lazy_static! {
+    static ref PLAIN_HOSTS_MAP: HashMap<String, IpAddr> = parse_plain_hosts_file();
+}
+
+fn parse_plain_hosts_file() -> HashMap<String, IpAddr> {
+    let mut ret = HashMap::new();
+    for line in include_str!("../hosts.txt").lines() {
+        if line.is_empty() {
+            continue;
+        }
+
+        if line.starts_with("#") {
+            continue;
+        }
+
+        if let [ip, domain] = line.split_whitespace().collect::<Vec<_>>().as_slice() {
+            if let Ok(addr) = ip.parse() {
+                ret.insert(domain.to_string(), addr);
+            }
+        }
+    }
+    ret
+}
 
 pub struct OverrideResolver {
     simple_matches: HashMap<String, IpAddr>,
@@ -58,6 +83,8 @@ impl OverrideResolver {
 
         let name = question.qname().to_string();
         if let Some(addr) = self.simple_matches.get(&name) {
+            self.respond_with_addr(question, addr)
+        } else if let Some(addr) = PLAIN_HOSTS_MAP.get(&name) {
             self.respond_with_addr(question, addr)
         } else if let Some(addr) = self
             .suffix_matches
