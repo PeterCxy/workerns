@@ -61,7 +61,7 @@ impl OverrideResolver {
             self.respond_with_addr(question, addr)
         } else if let Some(addr) = self
             .suffix_matches
-            .get_prefix(name.chars().rev().collect::<String>())
+            .get_by_prefix(name.chars().rev().collect::<String>())
         {
             self.respond_with_addr(question, addr)
         } else {

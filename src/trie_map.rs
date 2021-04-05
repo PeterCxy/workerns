@@ -16,36 +16,36 @@ impl<T> TrieMapNode<T> {
 
     fn traverse_trie_mut<'a, 'b>(
         &'a mut self,
-        prefix: &'b [u8],
+        key: &'b [u8],
     ) -> (&'a mut TrieMapNode<T>, &'b [u8]) {
-        if prefix.len() == 0 {
-            return (self, prefix);
+        if key.len() == 0 {
+            return (self, key);
         }
 
-        if let Some(idx) = self.find_child(prefix[0]) {
-            self.children[idx].traverse_trie_mut(&prefix[1..])
+        if let Some(idx) = self.find_child(key[0]) {
+            self.children[idx].traverse_trie_mut(&key[1..])
         } else {
-            (self, prefix)
+            (self, key)
         }
     }
 
     fn traverse_trie_for_value<'a, 'b>(
         &'a self,
-        prefix: &'b [u8],
+        key: &'b [u8],
         mut last_value: Option<&'a T>,
     ) -> (&'a TrieMapNode<T>, Option<&'a T>, &'b [u8]) {
         if self.value.is_some() {
             last_value = self.value.as_ref();
         }
 
-        if prefix.len() == 0 {
-            return (self, last_value, prefix);
+        if key.len() == 0 {
+            return (self, last_value, key);
         }
 
-        if let Some(idx) = self.find_child(prefix[0]) {
-            self.children[idx].traverse_trie_for_value(&prefix[1..], last_value)
+        if let Some(idx) = self.find_child(key[0]) {
+            self.children[idx].traverse_trie_for_value(&key[1..], last_value)
         } else {
-            (self, last_value, prefix)
+            (self, last_value, key)
         }
     }
 }
@@ -84,8 +84,8 @@ impl<T> TrieMap<T> {
         node.value = Some(value.into());
     }
 
-    pub fn get_prefix(&self, prefix: impl AsRef<[u8]>) -> Option<&T> {
-        let (_, value, _) = self.root.traverse_trie_for_value(prefix.as_ref(), None);
+    pub fn get_by_prefix(&self, key: impl AsRef<[u8]>) -> Option<&T> {
+        let (_, value, _) = self.root.traverse_trie_for_value(key.as_ref(), None);
         value
     }
 }
