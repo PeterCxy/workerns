@@ -1,9 +1,13 @@
 use crate::cache::DnsCache;
 use crate::r#override::OverrideResolver;
-use domain::base::{
-    iana::{Opcode, Rcode},
-    rdata::UnknownRecordData,
-    Dname, Message, MessageBuilder, ParsedDname, Question, Record, ToDname,
+use domain::{
+    base::{
+        iana::{Opcode, Rcode},
+        octets::Parser,
+        rdata::{ParseRecordData, UnknownRecordData},
+        Dname, Message, MessageBuilder, ParsedDname, Question, Record, ToDname,
+    },
+    rdata::AllRecordData,
 };
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
@@ -173,6 +177,19 @@ impl Client {
                     record.data().data().to_vec(),
                 ),
             );
+            // Try to parse the record; if failed, fail this entire query
+            let parsed_record_data: Result<Option<AllRecordData<&[u8], ParsedDname<&[u8]>>>, _> =
+                AllRecordData::parse_data(
+                    owned_record.rtype(),
+                    &mut Parser::from_ref(owned_record.data().data().as_slice()),
+                );
+
+            if let Err(_) = parsed_record_data {
+                return Err("Failed to parse response from upstream".to_string());
+            } else if let Ok(None) = parsed_record_data {
+                return Err("Upstream did not respond our query".to_string());
+            }
+
             ret.push(owned_record);
         }
         Ok(ret)
