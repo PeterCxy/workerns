@@ -1,7 +1,5 @@
 use crate::kv;
-use domain::base::question::Question;
-use domain::base::rdata::UnknownRecordData;
-use domain::base::{Dname, Record};
+use domain::base::{rdata::UnknownRecordData, Dname, Question, Record};
 use js_sys::Date;
 use serde::{Deserialize, Serialize};
 

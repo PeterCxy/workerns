@@ -1,6 +1,4 @@
-use domain::base::rdata::UnknownRecordData;
-use domain::base::{question::Question, Compose};
-use domain::base::{Dname, Record, Rtype};
+use domain::base::{rdata::UnknownRecordData, Compose, Dname, Question, Record, Rtype};
 use domain::rdata::{Aaaa, AllRecordData, A};
 use std::collections::HashMap;
 use std::net::IpAddr;

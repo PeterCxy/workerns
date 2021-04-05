@@ -1,4 +1,4 @@
-use domain::base::message::Message;
+use domain::base::Message;
 use js_sys::{Math, Promise};
 use std::ops::Add;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};

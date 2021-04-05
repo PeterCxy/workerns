@@ -1,12 +1,10 @@
 use crate::cache::DnsCache;
 use crate::r#override::OverrideResolver;
-use domain::base::iana::{Opcode, Rcode};
-use domain::base::message::Message;
-use domain::base::message_builder::MessageBuilder;
-use domain::base::question::Question;
-use domain::base::rdata::UnknownRecordData;
-use domain::base::record::Record;
-use domain::base::{Dname, ParsedDname, ToDname};
+use domain::base::{
+    iana::{Opcode, Rcode},
+    rdata::UnknownRecordData,
+    Dname, Message, MessageBuilder, ParsedDname, Question, Record, ToDname,
+};
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
