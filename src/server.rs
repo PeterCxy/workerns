@@ -1,4 +1,4 @@
-use crate::client::*;
+use crate::client::Client;
 use crate::r#override::OverrideResolver;
 use async_static::async_static;
 use domain::base::iana::{Opcode, Rcode};
@@ -60,9 +60,7 @@ impl Server {
     fn new(options: ServerOptions) -> Server {
         Server {
             client: Client::new(
-                ClientOptions {
-                    upstream_urls: options.upstream_urls.clone(),
-                },
+                options.upstream_urls.clone(),
                 OverrideResolver::new(options.overrides.clone(), options.override_ttl),
             ),
             options,

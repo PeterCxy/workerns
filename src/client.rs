@@ -11,21 +11,17 @@ use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
 
-pub struct ClientOptions {
-    pub upstream_urls: Vec<String>,
-}
-
 // The DNS client implementation
 pub struct Client {
-    options: ClientOptions,
+    upstream_urls: Vec<String>,
     cache: DnsCache,
     override_resolver: OverrideResolver,
 }
 
 impl Client {
-    pub fn new(options: ClientOptions, override_resolver: OverrideResolver) -> Client {
+    pub fn new(upstream_urls: Vec<String>, override_resolver: OverrideResolver) -> Client {
         Client {
-            options,
+            upstream_urls,
             cache: DnsCache::new(),
             override_resolver,
         }
@@ -78,8 +74,8 @@ impl Client {
 
     // Select an upstream randomly
     fn select_upstream(&self) -> String {
-        let idx = crate::util::random_range(0, self.options.upstream_urls.len() as u16);
-        self.options.upstream_urls[idx as usize].clone()
+        let idx = crate::util::random_range(0, self.upstream_urls.len() as u16);
+        self.upstream_urls[idx as usize].clone()
     }
 
     // Build UDP wireformat query from a list of questions
