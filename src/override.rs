@@ -79,22 +79,16 @@ impl OverrideResolver {
             IpAddr::V6(addr) => (Rtype::Aaaa, AllRecordData::Aaaa(Aaaa::new(addr.clone()))),
         };
 
-        let qtype = question.qtype();
-        if qtype == Rtype::Any || qtype == rtype {
-            // Convert AllRecordData to UnknownRecordData to match the type
-            // since our resolver client doesn't really care about the actual type
-            let mut rdata_buf: Vec<u8> = Vec::new();
-            rdata.compose(&mut rdata_buf).ok()?;
-            let record = Record::new(
-                question.qname().clone(),
-                question.qclass(),
-                self.override_ttl,
-                UnknownRecordData::from_octets(rtype, rdata_buf),
-            );
-            return Some(record);
-        } else {
-            // If the response and query types don't match, just return none
-            return None;
-        }
+        // Convert AllRecordData to UnknownRecordData to match the type
+        // since our resolver client doesn't really care about the actual type
+        let mut rdata_buf: Vec<u8> = Vec::new();
+        rdata.compose(&mut rdata_buf).ok()?;
+        let record = Record::new(
+            question.qname().clone(),
+            question.qclass(),
+            self.override_ttl,
+            UnknownRecordData::from_octets(rtype, rdata_buf),
+        );
+        return Some(record);
     }
 }
