@@ -5,10 +5,12 @@ function import_hosts() {
     curl "$url" | sed '/^#/d' | sed 's/0.0.0.0 //g' | sed 's/127.0.0.1 //g' | grep '\S'
 }
 
-URLS=(
-    "https://someonewhocares.org/hosts/zero/hosts"
-    "https://adaway.org/hosts.txt"
-)
+# In blocklist_config, put a list of URLs to shared ad-blocking hosts files
+# e.g.
+# URL=(
+#    "https://some-domain/hosts"
+#)
+. ./blocklist_config.sh
 
 echo "" > blocklist.txt
 for url in ${URLS[@]}; do
