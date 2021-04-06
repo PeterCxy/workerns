@@ -88,7 +88,7 @@ impl Server {
         );
         let resp_format = Self::get_response_format(&req);
 
-        let mut resp_body = err_response!(match &resp_format {
+        let resp_body = err_response!(match &resp_format {
             &DnsResponseFormat::WireFormat =>
                 Self::build_answer_wireformat(query_id, questions, records).map(|x| x.into_octets()),
             &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string()),
@@ -110,7 +110,11 @@ impl Server {
             .map_err(|_| "Could not create headers".to_string()));
         let mut resp_init = ResponseInit::new();
         resp_init.status(200).headers(&resp_headers);
-        return Response::new_with_opt_u8_array_and_init(Some(&mut resp_body), &resp_init).unwrap();
+        return Response::new_with_opt_buffer_source_and_init(
+            Some(&Uint8Array::from(resp_body.as_slice()).buffer()),
+            &resp_init,
+        )
+        .unwrap();
     }
 
     async fn parse_dns_body(req: &Request) -> Result<Message<Vec<u8>>, String> {
