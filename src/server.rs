@@ -226,13 +226,9 @@ impl Server {
         // Set up the answer section
         let mut answer_builder = question_builder.answer();
         for r in records {
-            if let Ok(Some(data)) = crate::util::parse_record_data(r.data()) {
-                answer_builder
-                    .push(Record::new(r.owner().clone(), r.class(), r.ttl(), data))
-                    .map_err(|_| "Max answer size exceeded".to_string())?;
-            } else {
-                return Err("Cannot parse record data responded by resolver client".to_string());
-            }
+            answer_builder
+                .push(r)
+                .map_err(|_| "Max answer size exceeded".to_string())?;
         }
         Ok(answer_builder.into_message())
     }

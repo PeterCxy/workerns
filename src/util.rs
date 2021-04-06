@@ -1,11 +1,4 @@
-use domain::{
-    base::{
-        octets::{ParseError, Parser},
-        rdata::{ParseRecordData, UnknownRecordData},
-        Message, ParsedDname,
-    },
-    rdata::AllRecordData,
-};
+use domain::base::Message;
 use js_sys::{Math, Promise};
 use std::ops::Add;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
@@ -26,15 +19,6 @@ extern "C" {
 pub fn parse_dns_wireformat(msg: &[u8]) -> Result<Message<Vec<u8>>, String> {
     Message::from_octets(msg.to_owned())
         .map_err(|_| "Failed to parse DNS wireformat message".to_string())
-}
-
-pub fn parse_record_data<T: AsRef<[u8]>>(
-    record: &UnknownRecordData<T>,
-) -> Result<Option<AllRecordData<&[u8], ParsedDname<&[u8]>>>, ParseError> {
-    AllRecordData::parse_data(
-        record.rtype(),
-        &mut Parser::from_ref(record.data().as_ref()),
-    )
 }
 
 // Rust wrapper around JS functions

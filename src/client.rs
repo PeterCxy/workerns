@@ -173,15 +173,6 @@ impl Client {
                     record.data().data().to_vec(),
                 ),
             );
-            // Try to parse the record; if failed, fail this entire query
-            let parsed_record_data = crate::util::parse_record_data(record.data());
-
-            if let Err(_) = parsed_record_data {
-                return Err("Failed to parse response from upstream".to_string());
-            } else if let Ok(None) = parsed_record_data {
-                return Err("Upstream did not respond our query".to_string());
-            }
-
             ret.push(owned_record);
         }
         Ok(ret)
