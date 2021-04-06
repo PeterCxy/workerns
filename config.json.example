@@ -1,0 +1,12 @@
+{
+    "upstream_urls": [
+        "https://cloudflare-dns.com/dns-query",
+        "https://dns.google/dns-query"
+    ],
+    "retries": 4,
+    "overrides": {
+        "test.com": "127.0.0.1",
+        "*.test.example.com": "127.0.0.2",
+    },
+    "override_ttl": 600
+}
