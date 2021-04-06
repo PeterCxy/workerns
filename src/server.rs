@@ -18,11 +18,13 @@ macro_rules! err_response {
         match $x {
             Ok(b) => b,
             Err(err) => {
+                let headers = Headers::new().unwrap();
+                headers.append("X-PeterCxy-Error-Message", &err).unwrap();
                 return Response::new_with_opt_str_and_init(
                     Some(&err),
-                    ResponseInit::new().status(400),
+                    ResponseInit::new().status(400).headers(&headers),
                 )
-                .unwrap()
+                .unwrap();
             }
         }
     };
@@ -88,8 +90,7 @@ impl Server {
 
         let mut resp_body = err_response!(match &resp_format {
             &DnsResponseFormat::WireFormat =>
-                Self::build_answer_wireformat(query_id, questions, records)
-                    .map(|x| x.into_octets()),
+                Self::build_answer_wireformat(query_id, questions, records).map(|x| x.into_octets()),
             &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string()),
         });
         let resp_content_type = match resp_format {
