@@ -1,0 +1,10 @@
+name = "workerns"
+type = "webpack"
+webpack_config = "webpack.config.js"
+account_id = ""
+workers_dev = true
+route = ""
+zone_id = ""
+kv_namespaces = [ 
+         { binding = "DNS_CACHE", id = "", preview_id = "" }
+]
