@@ -1,7 +1,7 @@
 use domain::base::{
     octets::Parser, rdata::ParseRecordData, Compose, Dname, Message, ParsedDname, Rtype, ToDname,
 };
-use domain::rdata::{AllRecordData, Cname};
+use domain::rdata::{AllRecordData, Cname, Mx, Ptr, Soa, Srv, Txt};
 use js_sys::{Math, Promise};
 use std::ops::Add;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
@@ -72,12 +72,35 @@ pub fn to_owned_record_data<T: AsRef<[u8]>, U: AsRef<[u8]>>(
     match data {
         AllRecordData::A(data) => Ok(AllRecordData::A(data.clone())),
         AllRecordData::Aaaa(data) => Ok(AllRecordData::Aaaa(data.clone())),
-        AllRecordData::Cname(data) => Ok(AllRecordData::Cname(Cname::new(
-            data.cname()
-                .to_dname()
-                .map_err(|_| "Failed parsing CNAME".to_string())?,
+        AllRecordData::Cname(data) => Ok(AllRecordData::Cname(Cname::new(data.cname().to_vec()))),
+        AllRecordData::Mx(data) => Ok(AllRecordData::Mx(Mx::new(
+            data.preference(),
+            data.exchange().to_vec(),
         ))),
-        // TODO: Fill all of these in
+        AllRecordData::Ptr(data) => Ok(AllRecordData::Ptr(Ptr::new(data.ptrdname().to_vec()))),
+        AllRecordData::Soa(data) => Ok(AllRecordData::Soa(Soa::new(
+            data.mname().to_vec(),
+            data.rname().to_vec(),
+            data.serial(),
+            data.refresh(),
+            data.retry(),
+            data.expire(),
+            data.minimum(),
+        ))),
+        AllRecordData::Txt(data) => Ok(AllRecordData::Txt(
+            Txt::from_slice(
+                data.as_flat_slice()
+                    .ok_or("Cannot parse TXT record".to_string())?,
+            )
+            .map_err(|_| "Cannot parse TXT record".to_string())?,
+        )),
+        AllRecordData::Srv(data) => Ok(AllRecordData::Srv(Srv::new(
+            data.priority(),
+            data.weight(),
+            data.port(),
+            data.target().to_vec(),
+        ))),
+        // Unimplemented / Unrecognized records
         _ => Err("Unsupported record type".to_string()),
     }
 }
