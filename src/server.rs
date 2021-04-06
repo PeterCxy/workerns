@@ -104,6 +104,7 @@ impl Server {
         err_response!(resp_headers
             .append("Content-Type", resp_content_type)
             .map_err(|_| "Could not create headers".to_string()));
+        // Content-Length is needed in case the DNS message itself contained end-of-string or end-of-line
         err_response!(resp_headers
             .append("Content-Length", &resp_body.len().to_string())
             .map_err(|_| "Could not create headers".to_string()));
