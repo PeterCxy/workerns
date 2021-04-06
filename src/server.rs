@@ -89,7 +89,7 @@ impl Server {
         let mut resp_body = err_response!(match &resp_format {
             &DnsResponseFormat::WireFormat =>
                 Self::build_answer_wireformat(query_id, questions, records)
-                    .map(|x| x.as_slice().to_owned()),
+                    .map(|x| x.into_octets()),
             &DnsResponseFormat::JsonFormat => Err("JSON is not supported yet".to_string()),
         });
         let resp_content_type = match resp_format {
@@ -102,6 +102,9 @@ impl Server {
             err_response!(Headers::new().map_err(|_| "Could not create headers".to_string()));
         err_response!(resp_headers
             .append("Content-Type", resp_content_type)
+            .map_err(|_| "Could not create headers".to_string()));
+        err_response!(resp_headers
+            .append("Content-Length", &resp_body.len().to_string())
             .map_err(|_| "Could not create headers".to_string()));
         let mut resp_init = ResponseInit::new();
         resp_init.status(200).headers(&resp_headers);
