@@ -86,7 +86,15 @@ impl DnsCache {
             ));
         }
 
-        Some(ret)
+        if ret.len() == 0 {
+            // Sometimes the KV list operation may return stale keys that
+            // are no longer valid, resulting in we skipping over them in
+            // the main loop above. This could result in a non-empty
+            // keys array but an empty return value.
+            None
+        } else {
+            Some(ret)
+        }
     }
 
     fn record_to_key(record: &Record<Dname<Vec<u8>>, OwnedRecordData>, buf: &[u8]) -> String {
