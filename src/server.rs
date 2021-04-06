@@ -3,8 +3,8 @@ use crate::r#override::OverrideResolver;
 use async_static::async_static;
 use domain::base::{
     iana::{Opcode, Rcode},
-    rdata::UnknownRecordData,
-    Dname, Message, MessageBuilder, Question, Record, ToDname,
+    record::AsRecord,
+    Dname, Message, MessageBuilder, Question, ToDname,
 };
 use js_sys::{ArrayBuffer, Uint8Array};
 use serde::Deserialize;
@@ -204,7 +204,7 @@ impl Server {
     fn build_answer_wireformat(
         id: u16,
         questions: Vec<Question<Dname<Vec<u8>>>>,
-        records: Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>,
+        records: Vec<impl AsRecord>,
     ) -> Result<Message<Vec<u8>>, String> {
         let mut message_builder = MessageBuilder::new_vec();
         // Set up the response header

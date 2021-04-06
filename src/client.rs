@@ -1,10 +1,11 @@
 use crate::cache::DnsCache;
 use crate::r#override::OverrideResolver;
+use crate::util::OwnedRecordData;
 use domain::base::{
     iana::{Opcode, Rcode},
-    rdata::UnknownRecordData,
     Dname, Message, MessageBuilder, ParsedDname, Question, Record, ToDname,
 };
+use domain::rdata::AllRecordData;
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
@@ -28,7 +29,7 @@ impl Client {
     pub async fn query(
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
-    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, OwnedRecordData>>, String> {
         // Attempt to answer locally first
         let (mut local_answers, questions) = self.try_answer_from_local(questions).await;
         if questions.len() == 0 {
@@ -59,7 +60,7 @@ impl Client {
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
         retries: usize,
-    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, OwnedRecordData>>, String> {
         let mut last_res = Err("Dummy".to_string());
         for _ in 0..retries {
             last_res = self.query(questions.clone()).await;
@@ -140,7 +141,7 @@ impl Client {
 
     fn extract_answers(
         msg: Message<Vec<u8>>,
-    ) -> Result<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>, String> {
+    ) -> Result<Vec<Record<Dname<Vec<u8>>, OwnedRecordData>>, String> {
         let answer_section = msg
             .answer()
             .map_err(|_| "Failed to parse DNS answer from upstream".to_string())?;
@@ -149,18 +150,19 @@ impl Client {
         // this is different from the server impl
         let answers: Vec<_> = answer_section.collect();
 
-        let mut ret: Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>> = Vec::new();
+        let mut ret: Vec<Record<Dname<Vec<u8>>, OwnedRecordData>> = Vec::new();
         for a in answers {
             let parsed_record = a.map_err(|_| "Failed to parse DNS answer record".to_string())?;
-            // Use UnknownRecordData here because we don't really care about the actual type of the record
-            // It saves time and saves sanity (because of the type signature of AllRecordData)
-            let record: Record<ParsedDname<&Vec<u8>>, UnknownRecordData<&[u8]>> = parsed_record
-                .to_record()
-                .map_err(|_| "Cannot parse record".to_string())?
-                .ok_or("Cannot parse record".to_string())?;
-            // Convert everything to owned for sanity in type signature...
-            // We'll need to do a copy before returning outside of the main
-            // query function anyway
+            // Actually parse the record
+            // Note that we cannot just use UnknownRecordData here and not parse it;
+            // it does not know how to parse all types of records correctly, which
+            // could corrupt the actual record data
+            let record: Record<ParsedDname<&Vec<u8>>, AllRecordData<&[u8], ParsedDname<&Vec<u8>>>> =
+                parsed_record
+                    .to_record()
+                    .map_err(|_| "Cannot parse record".to_string())?
+                    .ok_or("Cannot parse record".to_string())?;
+            // Convert the record to owned for sanity in type signature
             let owned_record = Record::new(
                 record
                     .owner()
@@ -168,10 +170,12 @@ impl Client {
                     .map_err(|_| "Failed to parse Dname".to_string())?,
                 record.class(),
                 record.ttl(),
-                UnknownRecordData::from_octets(
-                    record.data().rtype(),
-                    record.data().data().to_vec(),
-                ),
+                match crate::util::to_owned_record_data(record.data()) {
+                    Ok(data) => data,
+                    // If this fails, it means that our resolver doesn't support the type yet
+                    // so just skip this record
+                    Err(_) => continue,
+                },
             );
             ret.push(owned_record);
         }
@@ -185,7 +189,7 @@ impl Client {
         &self,
         questions: Vec<Question<Dname<Vec<u8>>>>,
     ) -> (
-        Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>,
+        Vec<Record<Dname<Vec<u8>>, OwnedRecordData>>,
         Vec<Question<Dname<Vec<u8>>>>,
     ) {
         let mut answers = Vec::new();
@@ -206,7 +210,7 @@ impl Client {
     }
 
     #[allow(unused_must_use)]
-    async fn cache_answers(&self, answers: &[Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>]) {
+    async fn cache_answers(&self, answers: &[Record<Dname<Vec<u8>>, OwnedRecordData>]) {
         for a in answers {
             // Ignore error -- we don't really care
             self.cache.put_cache(a).await;

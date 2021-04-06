@@ -1,4 +1,7 @@
-use domain::base::Message;
+use domain::base::{
+    octets::Parser, rdata::ParseRecordData, Compose, Dname, Message, ParsedDname, Rtype, ToDname,
+};
+use domain::rdata::{AllRecordData, Cname};
 use js_sys::{Math, Promise};
 use std::ops::Add;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
@@ -57,4 +60,41 @@ pub fn hash_buf(buf: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     hasher.write(buf);
     hasher.finish()
+}
+
+// Shorthand for a fully-owned AllRecordData variant
+pub type OwnedRecordData = AllRecordData<Vec<u8>, Dname<Vec<u8>>>;
+
+// Convert a parsed AllRecordData instance to owned
+pub fn to_owned_record_data<T: AsRef<[u8]>, U: AsRef<[u8]>>(
+    data: &AllRecordData<T, ParsedDname<U>>,
+) -> Result<OwnedRecordData, String> {
+    match data {
+        AllRecordData::A(data) => Ok(AllRecordData::A(data.clone())),
+        AllRecordData::Aaaa(data) => Ok(AllRecordData::Aaaa(data.clone())),
+        AllRecordData::Cname(data) => Ok(AllRecordData::Cname(Cname::new(
+            data.cname()
+                .to_dname()
+                .map_err(|_| "Failed parsing CNAME".to_string())?,
+        ))),
+        // TODO: Fill all of these in
+        _ => Err("Unsupported record type".to_string()),
+    }
+}
+
+// Convert owned record data to Vec buffer
+pub fn owned_record_data_to_buffer(data: &OwnedRecordData) -> Result<Vec<u8>, String> {
+    let mut ret: Vec<u8> = Vec::new();
+    data.compose(&mut ret)
+        .map_err(|_| "Cannot convert owned record data to buffer".to_string())?;
+    Ok(ret)
+}
+
+// Parse record data buffer and convert to owned record data
+pub fn octets_to_owned_record_data(rtype: Rtype, octets: &[u8]) -> Result<OwnedRecordData, String> {
+    let parsed: AllRecordData<&[u8], ParsedDname<&[u8]>> =
+        ParseRecordData::parse_data(rtype, &mut Parser::from_ref(octets))
+            .map_err(|_| "Cannot parse given record data".to_string())?
+            .ok_or("Given record data parsed to nothing".to_string())?;
+    to_owned_record_data(&parsed)
 }

@@ -1,5 +1,6 @@
 use crate::kv;
-use domain::base::{rdata::UnknownRecordData, Dname, Question, Record};
+use crate::util::OwnedRecordData;
+use domain::base::{Dname, Question, Record};
 use js_sys::Date;
 use serde::{Deserialize, Serialize};
 
@@ -22,13 +23,14 @@ impl DnsCache {
 
     pub async fn put_cache(
         &self,
-        record: &Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>,
+        record: &Record<Dname<Vec<u8>>, OwnedRecordData>,
     ) -> Result<(), String> {
         let ttl = record.ttl();
+        let data = crate::util::owned_record_data_to_buffer(record.data())?;
         self.store
             .put_buf_ttl_metadata(
-                &Self::record_to_key(record),
-                record.data().data(),
+                &Self::record_to_key(record, &data),
+                &data,
                 ttl as u64,
                 DnsCacheMetadata {
                     created_ts: (Date::now() / 1000f64) as u64,
@@ -41,7 +43,7 @@ impl DnsCache {
     pub async fn get_cache(
         &self,
         question: &Question<Dname<Vec<u8>>>,
-    ) -> Option<Vec<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>>> {
+    ) -> Option<Vec<Record<Dname<Vec<u8>>, OwnedRecordData>>> {
         // One question can have multiple cached records; so we list by prefix
         // Note that list_prefix returns 1000 records at maximum by default
         // We don't expect one question to have that many answers, so it
@@ -80,14 +82,14 @@ impl DnsCache {
                 question.qname().to_owned(),
                 question.qclass(),
                 remaining_ttl as u32,
-                UnknownRecordData::from_octets(question.qtype(), value),
+                crate::util::octets_to_owned_record_data(question.qtype(), &value).ok()?,
             ));
         }
 
         Some(ret)
     }
 
-    fn record_to_key(record: &Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>) -> String {
+    fn record_to_key(record: &Record<Dname<Vec<u8>>, OwnedRecordData>, buf: &[u8]) -> String {
         format!(
             "{};{};{};{}",
             record.owner(),
@@ -96,7 +98,7 @@ impl DnsCache {
             // We need to append the hash of the record data to the key
             // because one question might have multiple answers
             // When reading, we need to list the keys first
-            crate::util::hash_buf(record.data().data())
+            crate::util::hash_buf(buf)
         )
     }
 

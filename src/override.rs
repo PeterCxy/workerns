@@ -1,5 +1,6 @@
 use crate::trie_map::TrieMap;
-use domain::base::{rdata::UnknownRecordData, Compose, Dname, Question, Record, Rtype};
+use crate::util::OwnedRecordData;
+use domain::base::{Dname, Question, Record, Rtype};
 use domain::rdata::{Aaaa, AllRecordData, A};
 use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
@@ -74,7 +75,7 @@ impl OverrideResolver {
     pub fn try_resolve(
         &self,
         question: &Question<Dname<Vec<u8>>>,
-    ) -> Option<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>> {
+    ) -> Option<Record<Dname<Vec<u8>>, OwnedRecordData>> {
         match question.qtype() {
             // We only handle resolution of IP addresses
             Rtype::A | Rtype::A6 | Rtype::Aaaa | Rtype::Cname | Rtype::Any => (),
@@ -101,21 +102,17 @@ impl OverrideResolver {
         &self,
         question: &Question<Dname<Vec<u8>>>,
         addr: &IpAddr,
-    ) -> Option<Record<Dname<Vec<u8>>, UnknownRecordData<Vec<u8>>>> {
-        let (rtype, rdata): (_, AllRecordData<Vec<u8>, Dname<Vec<u8>>>) = match addr {
-            IpAddr::V4(addr) => (Rtype::A, AllRecordData::A(A::new(addr.clone()))),
-            IpAddr::V6(addr) => (Rtype::Aaaa, AllRecordData::Aaaa(Aaaa::new(addr.clone()))),
+    ) -> Option<Record<Dname<Vec<u8>>, OwnedRecordData>> {
+        let rdata: OwnedRecordData = match addr {
+            IpAddr::V4(addr) => AllRecordData::A(A::new(addr.clone())),
+            IpAddr::V6(addr) => AllRecordData::Aaaa(Aaaa::new(addr.clone())),
         };
 
-        // Convert AllRecordData to UnknownRecordData to match the type signature
-        // since our resolver client doesn't really care about the actual type
-        let mut rdata_buf: Vec<u8> = Vec::new();
-        rdata.compose(&mut rdata_buf).ok()?;
         let record = Record::new(
             question.qname().clone(),
             question.qclass(),
             self.override_ttl,
-            UnknownRecordData::from_octets(rtype, rdata_buf),
+            rdata,
         );
         return Some(record);
     }
